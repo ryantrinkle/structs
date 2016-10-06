@@ -1,6 +1,6 @@
 name:          structs
 category:      Data
-version:       0
+version:       0.0.1
 license:       BSD3
 cabal-version: >= 1.22
 license-file:  LICENSE
@@ -38,7 +38,7 @@ library
   build-depends:
     base >= 4.8 && < 5,
     deepseq,
-    template-haskell >= 2.10 && < 2.11,
+    template-haskell >= 2.10 && < 2.12,
     ghc-prim,
     primitive
 

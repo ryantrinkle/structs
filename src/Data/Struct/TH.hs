@@ -21,7 +21,11 @@ data StructRep = StructRep
   { srState       :: Name
   , srName        :: Name
   , srTyVars      :: [TyVarBndr]
+#if MIN_VERSION_template_haskell(2,11,0)
+  , srDerived     :: Cxt
+#else
   , srDerived     :: [Name]
+#endif
   , srCxt         :: Cxt
   , srConstructor :: Name
   , srMembers     :: [Member]
@@ -69,7 +73,11 @@ mkInitName rep = mkName ("new" ++ nameBase (srName rep))
 ------------------------------------------------------------------------
 
 computeRep :: Dec -> Q (Either Dec StructRep)
+#if MIN_VERSION_template_haskell(2,11,0)
+computeRep (DataD c n vs _ cs ds) =
+#else
 computeRep (DataD c n vs cs ds) =
+#endif
   do state <- validateStateType vs
      (conname, confields) <- validateContructor cs
      members <- traverse (validateMember state) confields
@@ -107,19 +115,35 @@ validateStateType xs =
 -- | Figure out which record fields are Slots and which are
 -- Fields. Slots will have types ending in the state type
 validateMember :: Name -> VarStrictType -> Q Member
+#if MIN_VERSION_template_haskell(2,11,0)
+validateMember s (fieldname,Bang NoSourceUnpackedness NoSourceStrictness,fieldtype) =
+#else
 validateMember s (fieldname,NotStrict,fieldtype) =
+#endif
   do when (occurs s fieldtype)
        (fail ("state type may not occur in field `" ++ nameBase fieldname ++ "`"))
      return (Member BoxedField fieldname fieldtype)
+#if MIN_VERSION_template_haskell(2,11,0)
+validateMember s (fieldname,Bang NoSourceUnpackedness SourceStrict,fieldtype) =
+#else
 validateMember s (fieldname,IsStrict,fieldtype) =
+#endif
   do f <- unapplyType fieldtype s
      when (occurs s f)
        (fail ("state type may only occur in final position in slot `" ++ nameBase fieldname ++ "`"))
      return (Member Slot fieldname f)
+#if MIN_VERSION_template_haskell(2,11,0)
+validateMember s (fieldname,Bang SourceUnpack _,fieldtype) =
+#else
 validateMember s (fieldname,Unpacked,fieldtype) =
+#endif
   do when (occurs s fieldtype)
        (fail ("state type may not occur in unpacked field `" ++ nameBase fieldname ++ "`"))
      return (Member UnboxedField fieldname fieldtype)
+#if MIN_VERSION_template_haskell(2,11,0)
+validateMember _ (fieldname,b,_) =
+  fail ("unsupported strictness/unpackedness in field `" ++ nameBase fieldname ++ "`: " ++ show b)
+#endif
 
 unapplyType :: Type -> Name -> Q Type
 unapplyType (AppT f (VarT x)) y | x == y = return f
@@ -143,13 +167,26 @@ generateCode ds rep = concat <$> sequence
 generateDataType :: StructRep -> DecsQ
 generateDataType rep = sequence
   [ newtypeD (return (srCxt rep)) (srName rep) (srTyVars rep)
+#if MIN_VERSION_template_haskell(2,11,0)
+      Nothing
+#endif
       (normalC
          (srConstructor rep)
-         [ strictType
+         [
+#if MIN_VERSION_template_haskell(2,11,0)
+           bangType
+             (bang noSourceUnpackedness noSourceStrictness)
+#else
+           strictType
              notStrict
+#endif
              [t| Object $(varT (srState rep)) |]
          ])
+#if MIN_VERSION_template_haskell(2,11,0)
+      (return (srDerived rep))
+#else
       (srDerived rep)
+#endif
   ]
 
 generateRoles :: [Dec] -> StructRep -> DecsQ

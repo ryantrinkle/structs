@@ -90,7 +90,11 @@ instance Eq (Object s) where
   (==) = eqStruct
 
 #ifndef HLINT
+#if __GLASGOW_HASKELL__ >= 800
+pattern Struct :: Struct t => () => SmallMutableArray# s Any -> t s
+#else
 pattern Struct :: () => Struct t => SmallMutableArray# s Any -> t s
+#endif
 pattern Struct x <- (destruct -> x) where
   Struct x = construct x
 #endif
@@ -123,7 +127,11 @@ isNil t = isTrue# (unsafeCoerce# reallyUnsafePtrEquality# (destruct t) Null)
 
 #ifndef HLINT
 -- | Truly imperative.
+#if __GLASGOW_HASKELL__ >= 800
+pattern Nil :: Struct t => () => t s
+#else
 pattern Nil :: () => Struct t => t s
+#endif
 pattern Nil <- (isNil -> True) where
   Nil = unsafeCoerce# Box Null
 #endif
